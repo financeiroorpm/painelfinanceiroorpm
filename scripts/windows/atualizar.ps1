@@ -1,7 +1,9 @@
 # Atualiza o Sistema Financeiro ORPM para a versao mais nova do GitHub (rode como Administrador).
 #   powershell -ExecutionPolicy Bypass -File scripts\windows\atualizar.ps1
 # O banco de dados (pasta dados\) nao e tocado; o sistema faz um backup sozinho toda vez que liga.
-$ErrorActionPreference = 'Stop'
+# 'Continue' porque npm e git escrevem avisos no stderr, e o PowerShell 5.1 trataria isso como erro.
+# Falhas de verdade sao conferidas pelo $LASTEXITCODE e com -ErrorAction Stop nos comandos do Windows.
+$ErrorActionPreference = 'Continue'
 $Tarefa = 'ORPM Financeiro'
 $Raiz = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Push-Location $Raiz
@@ -22,7 +24,7 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'npm ci falhou' }
 
   Write-Host '4/4 Ligando o sistema...'
-  Start-ScheduledTask -TaskName $Tarefa
+  Start-ScheduledTask -TaskName $Tarefa -ErrorAction Stop
   Start-Sleep -Seconds 4
   Write-Host 'Atualizado e no ar. Se algo der errado, veja dados\servidor.log' -ForegroundColor Green
 } catch {

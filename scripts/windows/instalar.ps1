@@ -3,7 +3,9 @@
 #   powershell -ExecutionPolicy Bypass -File scripts\windows\instalar.ps1
 # Para outra porta:  ... -File scripts\windows\instalar.ps1 -Porta 8080
 param([int]$Porta = 3000)
-$ErrorActionPreference = 'Stop'
+# 'Continue' porque npm e git escrevem avisos no stderr, e o PowerShell 5.1 trataria isso como erro.
+# Falhas de verdade sao conferidas pelo $LASTEXITCODE e com -ErrorAction Stop nos comandos do Windows.
+$ErrorActionPreference = 'Continue'
 $Tarefa = 'ORPM Financeiro'
 $Raiz = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
@@ -30,15 +32,15 @@ $gatilho = New-ScheduledTaskTrigger -AtStartup
 $conta = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
 $config = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 if (Get-ScheduledTask -TaskName $Tarefa -ErrorAction SilentlyContinue) { & "$PSScriptRoot\parar.ps1"; Unregister-ScheduledTask -TaskName $Tarefa -Confirm:$false }
-Register-ScheduledTask -TaskName $Tarefa -Action $acao -Trigger $gatilho -Principal $conta -Settings $config -Description 'Sistema Financeiro ORPM' | Out-Null
+Register-ScheduledTask -TaskName $Tarefa -Action $acao -Trigger $gatilho -Principal $conta -Settings $config -Description 'Sistema Financeiro ORPM' -ErrorAction Stop | Out-Null
 
 Write-Host "3/4 Liberando a porta $Porta no firewall (rede privada/dominio)..."
 Get-NetFirewallRule -DisplayName $Tarefa -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-New-NetFirewallRule -DisplayName $Tarefa -Direction Inbound -Protocol TCP -LocalPort $Porta -Action Allow -Profile Private,Domain | Out-Null
+New-NetFirewallRule -DisplayName $Tarefa -Direction Inbound -Protocol TCP -LocalPort $Porta -Action Allow -Profile Private,Domain -ErrorAction Stop | Out-Null
 
 Write-Host '4/4 Ligando o sistema...'
-Start-ScheduledTask -TaskName $Tarefa
-Start-Sleep -Seconds 4
+Start-ScheduledTask -TaskName $Tarefa -ErrorAction Stop
+Start-Sleep -Seconds 6
 try {
   Invoke-RestMethod "http://localhost:$Porta/api/saude" | Out-Null
   Write-Host ''
