@@ -16,7 +16,8 @@ try {
   if (Test-Path $banco) { Copy-Item $banco (Join-Path $pasta ("antes-da-atualizacao-" + (Get-Date -Format 'yyyy-MM-dd-HHmm') + '.db')) }
 
   Write-Host '2/4 Baixando a versao nova...'
-  & git pull --ff-only
+  # safe.directory: a pasta pode ter sido baixada por outro usuario do Windows (git recusaria com 'dubious ownership')
+  & git -c "safe.directory=$($Raiz -replace '\\','/')" pull --ff-only
   if ($LASTEXITCODE -ne 0) { throw 'git pull falhou. Tem alguma mudanca feita direto nesta pasta? Rode "git status" para ver.' }
 
   Write-Host '3/4 Instalando dependencias...'
