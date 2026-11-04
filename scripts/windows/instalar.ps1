@@ -47,8 +47,15 @@ try {
   Write-Host 'Pronto! O sistema esta no ar.' -ForegroundColor Green
   Write-Host "  Neste computador: http://localhost:$Porta"
   Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } | ForEach-Object { Write-Host "  Na rede:          http://$($_.IPAddress):$Porta" }
-  $atalho = Join-Path ([Environment]::GetFolderPath('CommonDesktopDirectory')) 'Financeiro ORPM.url'
-  Set-Content -Path $atalho -Value "[InternetShortcut]`r`nURL=http://localhost:$Porta/`r`nIconFile=$Raiz\public\icone.ico`r`nIconIndex=0" -Encoding ASCII
+  # Atalho .lnk (o Windows mostra o icone dele de forma confiavel; o .url as vezes fica sem icone)
+  $desk = [Environment]::GetFolderPath('CommonDesktopDirectory')
+  Remove-Item (Join-Path $desk 'Financeiro ORPM.url') -ErrorAction SilentlyContinue
+  $s = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $desk 'Financeiro ORPM.lnk'))
+  $s.TargetPath = "$env:WINDIR\explorer.exe"
+  $s.Arguments = "http://localhost:$Porta/"
+  $s.IconLocation = "$Raiz\public\icone.ico,0"
+  $s.Description = 'Sistema Financeiro ORPM'
+  $s.Save()
   Write-Host 'Atalho "Financeiro ORPM" criado na area de trabalho.'
   Write-Host 'No primeiro acesso, crie o usuario administrador.'
 } catch {
