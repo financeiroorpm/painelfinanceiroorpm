@@ -18,7 +18,7 @@ Controle de boletos a pagar e a receber, com banco de dados próprio, login por 
 2. Instale o **Git**: https://git-scm.com/download/win
 3. Abra o **PowerShell como Administrador** e baixe o projeto. Por exemplo, em `C:\orpm`:
    ```powershell
-   git clone https://github.com/SEU-USUARIO/orpm-financeiro.git C:\orpm
+   git clone https://github.com/financeiroorpm/painelfinanceiroorpm.git C:\orpm
    cd C:\orpm
    ```
 4. Rode o instalador:
