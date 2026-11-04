@@ -47,6 +47,9 @@ try {
   Write-Host 'Pronto! O sistema esta no ar.' -ForegroundColor Green
   Write-Host "  Neste computador: http://localhost:$Porta"
   Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } | ForEach-Object { Write-Host "  Na rede:          http://$($_.IPAddress):$Porta" }
+  $atalho = Join-Path ([Environment]::GetFolderPath('CommonDesktopDirectory')) 'Financeiro ORPM.url'
+  Set-Content -Path $atalho -Value "[InternetShortcut]`r`nURL=http://localhost:$Porta/" -Encoding ASCII
+  Write-Host 'Atalho "Financeiro ORPM" criado na area de trabalho.'
   Write-Host 'No primeiro acesso, crie o usuario administrador.'
 } catch {
   Write-Host "O sistema nao respondeu. Veja o arquivo dados\servidor.log" -ForegroundColor Red
