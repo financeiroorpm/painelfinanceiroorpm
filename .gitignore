@@ -4,3 +4,4 @@ dados/
 *.db-wal
 *.db-shm
 .env
+*.zip
