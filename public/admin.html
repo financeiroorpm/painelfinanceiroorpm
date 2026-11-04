@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Administração · Financeiro ORPM</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="wrap">
+  <div class="barra" id="barra"></div>
+  <div><h1>Administração</h1><p class="lead">Pessoas que usam o sistema e importação das planilhas antigas.</p></div>
+  <div id="msg" hidden></div>
+
+  <section class="card">
+    <h3>Usuários</h3>
+    <p class="note"><b>Administrador</b> faz tudo. <b>Financeiro</b> lança, edita e dá baixa. <b>Só leitura</b> apenas vê.</p>
+    <div class="tbox"><table><thead><tr><th>Nome</th><th>Usuário</th><th>Papel</th><th>Situação</th><th></th></tr></thead><tbody id="t-usuarios"></tbody></table></div>
+    <h3 style="margin-top:18px">Adicionar pessoa</h3>
+    <form id="f-usuario" class="form" novalidate>
+      <label class="fld"><span>Nome</span><input name="nome" autocomplete="off" required></label>
+      <label class="fld"><span>Usuário (para entrar)</span><input name="login" autocomplete="off" autocapitalize="none" required></label>
+      <label class="fld"><span>Senha inicial (mín. 8)</span><input name="senha" type="text" autocomplete="off" required></label>
+      <label class="fld"><span>Papel</span><select name="papel"><option value="financeiro">Financeiro</option><option value="leitura">Só leitura</option><option value="admin">Administrador</option></select></label>
+      <div class="fld" style="justify-content:flex-end"><button class="btn" style="padding:9px">Adicionar</button></div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h3>Importar planilhas antigas</h3>
+    <p class="note">No Google Planilhas, abra cada planilha e use <b>Arquivo → Fazer download → Microsoft Excel (.xlsx)</b>. Escolha os arquivos aqui e clique em <b>Conferir</b>: nada é gravado até você confirmar. Pode importar de novo sem medo, as linhas que já entraram são puladas.</p>
+    <form id="f-importar" class="form" novalidate>
+      <label class="fld larga"><span>Planilha de boletos a pagar (.xlsx)</span><input type="file" name="pagar" accept=".xlsx"></label>
+      <label class="fld larga"><span>Planilha de boletos a receber (.xlsx)</span><input type="file" name="receber" accept=".xlsx"></label>
+      <label class="fld"><span>Ano das abas sem ano no nome</span><input type="number" name="ano" min="2000" max="2100"></label>
+    </form>
+    <div class="acao" style="justify-content:flex-start;margin-top:14px">
+      <button type="button" class="btn sec" id="i-conferir">Conferir</button>
+      <button type="button" class="btn" id="i-gravar" hidden>Importar para o sistema</button>
+    </div>
+    <div id="i-resumo"></div>
+  </section>
+</main>
+<script type="module" src="/admin.js"></script>
+</body>
+</html>

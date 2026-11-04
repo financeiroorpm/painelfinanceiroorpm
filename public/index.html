@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel Financeiro ORPM</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="wrap">
+  <div class="barra" id="barra"></div>
+  <div class="top">
+    <div>
+      <h1>Painel financeiro ORPM</h1>
+      <p class="lead">Boletos a pagar e a receber. Verde é pago, vermelho é atrasado.</p>
+    </div>
+    <div class="controls">
+      <select id="mes" aria-label="Período"></select>
+      <button type="button" class="btn sec" id="atualizar">Atualizar</button>
+      <a class="btn sec" href="/api/exportar.csv">Exportar CSV</a>
+      <button type="button" class="btn so-escrita" id="novo-btn">+ Novo boleto</button>
+    </div>
+  </div>
+
+  <div id="msg" hidden></div>
+
+  <section id="sec-atrasados">
+    <h2>Atrasados até hoje</h2>
+    <div class="tiles">
+      <div class="card"><p class="lbl">A receber em atraso</p><b class="big alerta" id="k-atr-rec">—</b><p class="note sub"><b id="k-atr-rec-n">—</b> boletos de clientes</p></div>
+      <div class="card"><p class="lbl">A pagar em atraso</p><b class="big alerta" id="k-atr-pag">—</b><p class="note sub"><b id="k-atr-pag-n">—</b> boletos de fornecedores</p></div>
+    </div>
+    <p class="note">Conta como atrasado todo boleto não pago cujo vencimento já passou, em qualquer mês.</p>
+    <div class="card" style="margin-top:12px">
+      <h3>Boletos em atraso</h3>
+      <p class="note">Do mais antigo para o mais recente.</p>
+      <div class="tbox"><table><thead><tr><th>Vencimento</th><th>Tipo</th><th>Cliente / fornecedor</th><th class="num">Valor</th><th>Situação</th><th></th></tr></thead><tbody id="t-atrasados"></tbody></table></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="h-total">Total do mês</h2>
+    <div class="tiles">
+      <div class="card"><p class="lbl">A receber</p><b class="big" id="k-rec">—</b><p class="note sub"><b id="k-rec-pago">—</b> já recebido · <b id="k-rec-ab">—</b> em aberto</p></div>
+      <div class="card"><p class="lbl">A pagar</p><b class="big" id="k-pag">—</b><p class="note sub"><b id="k-pag-pago">—</b> já pago · <b id="k-pag-ab">—</b> em aberto</p></div>
+      <div class="card"><p class="lbl">Saldo previsto</p><b class="big" id="k-saldo">—</b><p class="note">A receber menos a pagar, no período todo</p></div>
+    </div>
+  </section>
+
+  <section class="so-mes-atual">
+    <h2>Hoje e próximos 7 dias</h2>
+    <div class="tiles">
+      <div class="card"><p class="lbl">Vence hoje, a pagar</p><b class="big" id="k-hoje-pag">—</b><p class="note sub"><b id="k-hoje-rec">—</b> a receber hoje</p></div>
+      <div class="card"><p class="lbl">A pagar em 7 dias</p><b class="big" id="k-7-pag">—</b><p class="note">Hoje incluído, só não pagos</p></div>
+      <div class="card"><p class="lbl">A receber em 7 dias</p><b class="big" id="k-7-rec">—</b><p class="note">Hoje incluído, só não pagos</p></div>
+      <div class="card"><p class="lbl">Saldo dos 7 dias</p><b class="big" id="k-7-saldo">—</b><p class="note">Entradas menos saídas</p></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3 id="h-fluxo">Fluxo de caixa por dia de vencimento</h3>
+    <p class="note">Barras para cima são entradas, para baixo são saídas. A linha é o saldo acumulado no período.</p>
+    <div class="legend"><span><i class="sw" style="background:var(--entrada)"></i>Entradas</span><span><i class="sw" style="background:var(--saida)"></i>Saídas</span><span><i class="sw" style="background:var(--linha);height:2px;vertical-align:3px"></i>Saldo acumulado</span></div>
+    <div class="chart" id="grafico"></div>
+  </section>
+
+  <div class="grid2">
+    <section class="card"><h3 id="h-topp">Maiores fornecedores do mês</h3><p class="note">Soma dos boletos a pagar</p><ul class="bars" id="top-pag"></ul></section>
+    <section class="card"><h3 id="h-topr">Maiores clientes do mês</h3><p class="note">Soma dos boletos a receber</p><ul class="bars" id="top-rec"></ul></section>
+  </div>
+
+  <section class="card" id="sec-conferir" hidden>
+    <h3>Para conferir</h3>
+    <p class="note">Boletos importados das planilhas com algo estranho, e linhas que não deu para importar. Edite para corrigir, ou marque que está certo.</p>
+    <div class="tbox"><table><thead><tr><th>Vencimento</th><th>Tipo</th><th>Cliente / fornecedor</th><th class="num">Valor</th><th>Problema</th><th></th></tr></thead><tbody id="t-conferir"></tbody></table></div>
+  </section>
+
+  <section class="card" id="vencimentos">
+    <h3 id="h-venc">Todos os vencimentos do mês</h3>
+    <p class="note">Busque um cliente, fornecedor ou documento para ver se está pago e dar baixa.</p>
+    <div class="tools">
+      <select id="f-tipo" aria-label="Tipo"><option value="">Receber e pagar</option><option value="receber">Só a receber</option><option value="pagar">Só a pagar</option></select>
+      <select id="f-sit" aria-label="Situação"><option value="">Todas as situações</option><option value="naopago">Não pagos</option><option value="pago">Pagos</option><option value="atrasado">Atrasados</option></select>
+      <input type="search" id="busca" placeholder="Buscar cliente, fornecedor ou documento" aria-label="Buscar">
+    </div>
+    <div class="tbox"><table><thead><tr><th>Vencimento</th><th>Tipo</th><th>Cliente / fornecedor</th><th class="num">Valor</th><th>Situação</th><th></th></tr></thead><tbody id="t-venc"></tbody></table></div>
+  </section>
+</main>
+
+<dialog id="dlg-boleto">
+  <h3 id="b-titulo">Lançar boleto novo</h3>
+  <p class="note" id="b-nota">Com mais de uma parcela, cada uma vence no mesmo dia dos meses seguintes.</p>
+  <form id="f-boleto" class="form" novalidate>
+    <label class="fld"><span>Tipo</span>
+      <select id="b-tipo"><option value="receber">A receber (cliente)</option><option value="pagar-com">A pagar, com nota</option><option value="pagar-sem">A pagar, sem nota</option></select></label>
+    <label class="fld larga"><span id="b-nome-lbl">Cliente</span><input id="b-nome" list="b-nomes" autocomplete="off" placeholder="Comece a digitar o nome"><datalist id="b-nomes"></datalist></label>
+    <label class="fld"><span id="b-valor-lbl">Valor</span><input id="b-valor" class="numin" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>
+    <label class="fld"><span id="b-venc-lbl">Vencimento</span><input id="b-venc" type="date"></label>
+    <label class="fld so-novo"><span>Parcelas</span><input id="b-parc" type="number" min="1" max="60" value="1"></label>
+    <label class="fld"><span>Data da compra</span><input id="b-compra" type="date"></label>
+    <label class="fld so-rec"><span>NF serviço</span><input id="b-nfs" autocomplete="off"></label>
+    <label class="fld so-rec"><span>NF peça</span><input id="b-nfp" autocomplete="off"></label>
+    <label class="fld so-rec"><span>Número da OS</span><input id="b-os" autocomplete="off"></label>
+    <label class="fld so-rec"><span>Banco</span><input id="b-banco" list="b-bancos" autocomplete="off" placeholder="Ex.: Banestes"><datalist id="b-bancos"><option value="Banestes"><option value="Banco do Brasil"><option value="Bradesco"><option value="Caixa"><option value="Itaú"><option value="Santander"><option value="Sicoob"><option value="Sicredi"><option value="Inter"><option value="Nubank"><option value="C6 Bank"></datalist></label>
+    <label class="fld so-pag" hidden><span>Número do documento</span><input id="b-doc" autocomplete="off"></label>
+    <label class="fld larga"><span>Observação</span><input id="b-obs" autocomplete="off"></label>
+  </form>
+  <ul class="previa" id="b-previa"></ul>
+  <div class="acao" style="justify-content:space-between;margin-top:16px">
+    <div class="acao"><button type="button" class="btn" id="b-salvar">Salvar</button><button type="button" class="btn sec" id="b-fechar">Fechar</button></div>
+    <button type="button" class="btn perigo" id="b-cancelar-boleto" hidden>Cancelar este boleto</button>
+  </div>
+</dialog>
+
+<dialog id="dlg-hist">
+  <h3 id="h-hist">Histórico</h3>
+  <ul class="hist" id="l-hist"></ul>
+  <div class="acao" style="justify-content:flex-start;margin-top:16px"><button type="button" class="btn sec" id="h-fechar">Fechar</button></div>
+</dialog>
+
+<script src="/vendor/d3.min.js"></script>
+<script type="module" src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entrar · Financeiro ORPM</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="wrap">
+  <section class="card login">
+    <h1 id="titulo">Financeiro ORPM</h1>
+    <p class="lead" id="explica">Entre com seu usuário e senha.</p>
+    <form id="f" novalidate>
+      <label class="fld" id="campo-nome" hidden><span>Seu nome</span><input name="nome" autocomplete="name"></label>
+      <label class="fld"><span>Usuário</span><input name="login" autocomplete="username" autocapitalize="none" required></label>
+      <label class="fld"><span>Senha</span><input name="senha" type="password" autocomplete="current-password" required></label>
+      <div id="msg" hidden></div>
+      <button class="btn" id="entrar" style="padding:10px">Entrar</button>
+    </form>
+  </section>
+</main>
+<script type="module">
+  import { $, api, mensagem } from '/comum.js';
+  const f = $('f');
+  const estado = await api('GET', '/api/estado');
+  if (estado.usuario) location.href = '/';
+  const configurar = estado.precisaConfigurar;
+  if (configurar) {
+    $('titulo').textContent = 'Primeiro acesso';
+    $('explica').textContent = 'Crie o usuário administrador do sistema. Depois você cadastra as outras pessoas em Administração.';
+    $('campo-nome').hidden = false;
+    f.senha.autocomplete = 'new-password';
+    $('entrar').textContent = 'Criar administrador';
+  }
+  f.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    $('entrar').disabled = true; mensagem('');
+    try {
+      if (configurar) await api('POST', '/api/configurar', { nome: f.nome.value, login: f.login.value, senha: f.senha.value });
+      else await api('POST', '/api/login', { login: f.login.value, senha: f.senha.value });
+      location.href = '/';
+    } catch (e) { mensagem(e.message, 'erro'); $('entrar').disabled = false; }
+  });
+</script>
+</body>
+</html>
