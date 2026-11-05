@@ -61,8 +61,7 @@ async function importar(gravar) {
     const r = await api('POST', '/api/importar', fd);
     mostrarResumo(r);
     if (gravar) {
-      const x = r.resultado;
-      mensagem(`Importação feita: ${x.novos} boletos novos, ${x.repetidos} já estavam no sistema, ${x.pendencias} linhas para conferir no painel.`, 'ok');
+      mensagem('Importação feita: ' + textoMudancas(r.mudancas) + '.', 'ok');
       $('i-gravar').hidden = true;
     } else { mensagem(''); $('i-gravar').hidden = false; }
   } catch (e) { mensagem(e.message, 'erro'); }
@@ -89,7 +88,24 @@ function mostrarResumo(r) {
     }
     box.append(c);
   }
-  if (r.simulacao) box.append(el('p', 'note', 'Nada foi gravado ainda. Se estiver certo, clique em "Importar para o sistema".'));
+  if (r.simulacao) {
+    const m = r.mudancas;
+    const tem = Object.values(m).some((v) => v > 0);
+    box.append(el('h3', '', 'O que vai mudar no sistema'));
+    box.append(el('p', 'note', tem ? textoMudancas(m) + '.' : 'Nada: o sistema já está igual à planilha.'));
+    if (m.cancelados) box.append(el('p', 'note', 'Boletos cancelados são os que foram apagados da planilha ou tiveram nome, valor ou vencimento mudados (nesse caso entra o boleto novo no lugar). Eles continuam no histórico.'));
+    box.append(el('p', 'note', 'Nada foi gravado ainda. Se estiver certo, clique em "Importar para o sistema".'));
+  }
+}
+
+function textoMudancas(m) {
+  const partes = [
+    [m.novos, 'boleto novo', 'boletos novos'], [m.pagos, 'marcado como pago', 'marcados como pagos'],
+    [m.reabertos, 'volta para em aberto', 'voltam para em aberto'], [m.cancelados, 'cancelado', 'cancelados'],
+    [m.marcadores, 'muda de cor (amarelo)', 'mudam de cor (amarelo)'], [m.conferir, 'vai para "Para conferir"', 'vão para "Para conferir"'],
+    [m.pendenciasNovas, 'linha ilegível nova', 'linhas ilegíveis novas'], [m.pendenciasResolvidas, 'linha ilegível que foi corrigida na planilha', 'linhas ilegíveis que foram corrigidas na planilha'],
+  ].filter(([n]) => n > 0).map(([n, um, varios]) => n + ' ' + (n === 1 ? um : varios));
+  return partes.length ? partes.join(', ') : 'nenhuma mudança';
 }
 
 $('i-conferir').addEventListener('click', () => importar(false));

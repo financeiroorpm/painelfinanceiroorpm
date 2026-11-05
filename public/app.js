@@ -6,9 +6,11 @@ const ehAno = () => /^\d{4}$/.test(st.mes);
 const rotuloTipo = (t) => (t === 'receber' ? 'Receber' : 'Pagar');
 const rotuloMes = (k) => NOME_MES[+k.slice(5, 7) - 1] + '/' + k.slice(2, 4);
 
-// Atrasado = não pago e o vencimento já passou
-const vencido = (b) => b.situacao === 'aberto' && b.vencimento < st.hoje;
-const situacao = (b) => (b.situacao === 'pago' ? 'Pago' : vencido(b) ? 'Atrasado' : b.marcador === 'amarelo' ? 'Amarelo' : 'Em aberto');
+// "Em aberto" para as contas: não pago e não marcado de amarelo (amarelo fica de fora, como no painel antigo)
+const emAberto = (b) => b.situacao === 'aberto' && b.marcador !== 'amarelo';
+// Atrasado = em aberto e o vencimento já passou
+const vencido = (b) => emAberto(b) && b.vencimento < st.hoje;
+const situacao = (b) => (b.situacao === 'pago' ? 'Pago' : b.marcador === 'amarelo' ? 'Amarelo' : vencido(b) ? 'Atrasado' : 'Em aberto');
 const docDe = (b) => [b.documento && 'Doc ' + b.documento, b.nf_servico && 'NF ' + b.nf_servico, b.nf_peca && 'NF-P ' + b.nf_peca, b.os && 'OS ' + b.os, b.banco,
   b.tipo === 'pagar' && !b.com_nota ? 'sem nota' : '', b.total_parcelas ? `parcela ${b.parcela}/${b.total_parcelas}` : ''].filter(Boolean).join(' · ');
 
@@ -57,7 +59,9 @@ async function verHistorico(b) {
   $('dlg-hist').showModal();
   try {
     const { historico } = await api('GET', `/api/boletos/${b.id}/historico`);
-    const ACOES = { criado: 'Lançado', importado: 'Importado da planilha', editado: 'Editado', pago: 'Marcado como pago', reaberto: 'Voltou para em aberto', cancelado: 'Cancelado', conferido: 'Conferido' };
+    const ACOES = { criado: 'Lançado', importado: 'Importado da planilha', editado: 'Editado', pago: 'Marcado como pago', reaberto: 'Voltou para em aberto', cancelado: 'Cancelado', conferido: 'Conferido',
+      'pago (planilha)': 'Marcado como pago (verde na planilha)', 'reaberto (planilha)': 'Voltou para em aberto (planilha)', 'cancelado (planilha)': 'Cancelado (apagado ou alterado na planilha)',
+      'marcador (planilha)': 'Cor mudou na planilha', 'conferir (planilha)': 'Não está mais na planilha' };
     const NOMES = { nome: 'nome', valor_centavos: 'valor', vencimento: 'vencimento', data_compra: 'data da compra', documento: 'documento', nf_servico: 'NF serviço', nf_peca: 'NF peça', os: 'OS', banco: 'banco', observacao: 'observação', com_nota: 'com nota' };
     const mostra = (k, v) => (v == null || v === '' ? '(vazio)' : k === 'valor_centavos' ? reais(v) : /^\d{4}-\d{2}-\d{2}$/.test(v) ? fmtD(v) : String(v));
     $('l-hist').replaceChildren(...historico.map((h) => {
@@ -196,10 +200,10 @@ function calcular() {
   const soma = (xs) => xs.reduce((s, b) => s + b.valor_centavos, 0);
   const R = atual.filter((b) => b.tipo === 'receber'), P = atual.filter((b) => b.tipo === 'pagar');
   const pago = (xs) => xs.filter((b) => b.situacao === 'pago');
-  const aberto = (xs) => xs.filter((b) => b.situacao === 'aberto');
+  const aberto = (xs) => xs.filter(emAberto);
   const atrasados = st.boletos.filter(vencido);
   const fim7 = new Date(Date.parse(st.hoje + 'T00:00:00Z') + 6 * 86400000).toISOString().slice(0, 10);
-  const entre = (d0, d1, tipo) => soma(st.boletos.filter((b) => b.situacao === 'aberto' && b.tipo === tipo && b.vencimento >= d0 && b.vencimento <= d1));
+  const entre = (d0, d1, tipo) => soma(st.boletos.filter((b) => emAberto(b) && b.tipo === tipo && b.vencimento >= d0 && b.vencimento <= d1));
   const chave = (b) => (ehAno() ? b.vencimento.slice(0, 7) : b.vencimento);
   const porDia = new Map();
   atual.forEach((b) => { const k = chave(b); const d = porDia.get(k) || { e: 0, s: 0 }; if (b.tipo === 'receber') d.e += b.valor_centavos / 100; else d.s += b.valor_centavos / 100; porDia.set(k, d); });

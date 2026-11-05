@@ -117,7 +117,8 @@ test('fluxo completo: configurar, usuários, boletos, permissões, histórico, i
   assert.equal(sim.dados.resumo[0].boletos, 5);
   const f2 = fd(); f2.set('gravar', '1');
   const imp = await adm('POST', '/api/importar', f2);
-  assert.equal(imp.dados.resultado.novos, 5);
+  assert.equal(imp.dados.mudancas.novos, 5);
+  assert.equal(sim.dados.mudancas.novos, 5);
   const pend = (await ana('GET', '/api/pendencias')).dados.pendencias;
   assert.equal(pend.length, 1);
   const lanc = await ana('POST', '/api/boletos', { tipo: 'pagar', nome: pend[0].nome, valor: '20,00', vencimento: '2026-11-03', pendenciaId: pend[0].id });

@@ -128,7 +128,7 @@ export async function analisarPlanilha(buffer, tipo, anoPadrao = new Date().getF
           banco: (t(bl.cBanco).texto || '').toUpperCase() || null,
           situacao: pago ? 'pago' : 'aberto', marcador: !pago && cor === 'amarelo' ? 'amarelo' : null,
           conferir_motivo: motivos.length ? motivos.join('; ') : null,
-          observacao: `Importado da planilha (aba "${aba.trim()}", linha ${r})`, origem_ref,
+          observacao: `Importado da planilha (aba "${aba.trim()}", linha ${r})`, origem_ref, origem_aba: aba.trim(),
         });
         lidas++;
       }
@@ -138,24 +138,85 @@ export async function analisarPlanilha(buffer, tipo, anoPadrao = new Date().getF
   return { boletos, pendencias, abas };
 }
 
-// Grava no banco. Linhas já importadas antes (mesmo origem_ref) são puladas.
+// Compara a planilha com o que já está no banco e diz o que mudaria, sem gravar nada.
+// Só mexe em boletos que vieram da planilha e em abas presentes no arquivo; o que foi lançado no sistema fica como está.
+//  - linha nova na planilha                       -> boleto novo
+//  - pintada de verde (ou "Pago") na planilha      -> marca como pago
+//  - deixou de estar verde, e o "pago" veio da planilha -> volta para em aberto
+//  - sumiu da planilha (apagada ou com valor/data/nome mudados) -> cancela o antigo
+//    (se alguém deu baixa nele pelo sistema, não cancela: manda para "Para conferir")
+export function planejarImportacao(db, analises) {
+  const plano = { novos: [], pagar: [], reabrir: [], marcador: [], cancelar: [], conferir: [], pendenciasNovas: [], pendenciasResolver: [] };
+  for (const a of analises) {
+    const abas = new Set(a.abas.filter((x) => x.mes).map((x) => x.aba.trim()));
+    const naPlanilha = new Map(a.boletos.map((b) => [b.origem_ref, b]));
+    const existentes = db.prepare("SELECT * FROM boletos WHERE origem = 'planilha' AND tipo = ?").all(a.tipo);
+    const porRef = new Map(existentes.map((b) => [b.origem_ref, b]));
+    for (const b of a.boletos) {
+      const atual = porRef.get(b.origem_ref);
+      if (!atual) { plano.novos.push(b); continue; }
+      if (atual.situacao === 'cancelado') continue;
+      if (b.situacao === 'pago' && atual.situacao === 'aberto') plano.pagar.push(atual);
+      else if (b.situacao === 'aberto' && atual.situacao === 'pago' && atual.pago_por == null) plano.reabrir.push(atual);
+      if ((b.marcador || null) !== (atual.marcador || null)) plano.marcador.push({ atual, marcador: b.marcador || null });
+    }
+    for (const atual of existentes) {
+      if (atual.situacao === 'cancelado' || !atual.origem_aba || !abas.has(atual.origem_aba) || naPlanilha.has(atual.origem_ref)) continue;
+      if (atual.situacao === 'pago' && atual.pago_por != null) { if (!atual.conferir_motivo) plano.conferir.push(atual); }
+      else plano.cancelar.push(atual);
+    }
+    const refsPend = new Set(a.pendencias.map((p) => p.origem_ref));
+    const pendAbertas = db.prepare('SELECT * FROM pendencias WHERE tipo = ? AND resolvida = 0').all(a.tipo);
+    const jaTem = new Set(db.prepare('SELECT origem_ref FROM pendencias WHERE tipo = ?').pluck().all(a.tipo));
+    plano.pendenciasNovas.push(...a.pendencias.filter((p) => !jaTem.has(p.origem_ref)));
+    plano.pendenciasResolver.push(...pendAbertas.filter((p) => abas.has(p.aba.trim()) && !refsPend.has(p.origem_ref)));
+  }
+  return plano;
+}
+
+export function resumoDoPlano(plano) {
+  return {
+    novos: plano.novos.length, pagos: plano.pagar.length, reabertos: plano.reabrir.length, cancelados: plano.cancelar.length,
+    conferir: plano.conferir.length, pendenciasNovas: plano.pendenciasNovas.length, pendenciasResolvidas: plano.pendenciasResolver.length,
+    marcadores: plano.marcador.length,
+  };
+}
+
+// Grava no banco tudo o que planejarImportacao achou. Cada mudança entra no histórico do boleto.
 export function gravarImportacao(db, analises, usuarioId) {
+  const agora = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+  const hist = db.prepare('INSERT INTO historico (boleto_id, usuario_id, acao, antes, depois) VALUES (?, ?, ?, ?, ?)');
+  const obter = db.prepare('SELECT * FROM boletos WHERE id = ?');
   const insB = db.prepare(`INSERT OR IGNORE INTO boletos (tipo, com_nota, nome, valor_centavos, vencimento, data_compra, documento, nf_servico, nf_peca, os, banco,
-    observacao, situacao, marcador, conferir_motivo, origem, origem_ref, criado_por)
+    observacao, situacao, marcador, conferir_motivo, origem, origem_ref, origem_aba, criado_por)
     VALUES (@tipo, @com_nota, @nome, @valor_centavos, @vencimento, @data_compra, @documento, @nf_servico, @nf_peca, @os, @banco,
-    @observacao, @situacao, @marcador, @conferir_motivo, 'planilha', @origem_ref, @criado_por)`);
-  const insH = db.prepare("INSERT INTO historico (boleto_id, usuario_id, acao, depois) VALUES (?, ?, 'importado', ?)");
+    @observacao, @situacao, @marcador, @conferir_motivo, 'planilha', @origem_ref, @origem_aba, @criado_por)`);
   const insP = db.prepare(`INSERT OR IGNORE INTO pendencias (tipo, com_nota, aba, linha, nome, valor_texto, venc_texto, documento, motivo, origem_ref)
     VALUES (@tipo, @com_nota, @aba, @linha, @nome, @valor_texto, @venc_texto, @documento, @motivo, @origem_ref)`);
-  const res = { novos: 0, repetidos: 0, pendencias: 0 };
+  const mudar = (b, acao, sql, ...args) => {
+    db.prepare(sql).run(...args, agora, b.id);
+    hist.run(b.id, usuarioId, acao, JSON.stringify(b), JSON.stringify(obter.get(b.id)));
+  };
+  let plano;
   db.transaction(() => {
-    for (const a of analises) {
-      for (const b of a.boletos) {
-        const r = insB.run({ ...b, criado_por: usuarioId });
-        if (r.changes) { res.novos++; insH.run(Number(r.lastInsertRowid), usuarioId, JSON.stringify(b)); } else res.repetidos++;
-      }
-      for (const p of a.pendencias) res.pendencias += insP.run(p).changes;
+    plano = planejarImportacao(db, analises);
+    for (const b of plano.novos) {
+      const r = insB.run({ origem_aba: null, ...b, criado_por: usuarioId });
+      if (r.changes) hist.run(Number(r.lastInsertRowid), usuarioId, 'importado', null, JSON.stringify(b));
     }
+    for (const b of plano.pagar) mudar(b, 'pago (planilha)', "UPDATE boletos SET situacao = 'pago', pago_em = NULL, pago_por = NULL, atualizado_em = ? WHERE id = ?");
+    for (const b of plano.reabrir) mudar(b, 'reaberto (planilha)', "UPDATE boletos SET situacao = 'aberto', pago_em = NULL, pago_por = NULL, atualizado_em = ? WHERE id = ?");
+    for (const { atual, marcador } of plano.marcador) mudar(atual, 'marcador (planilha)', 'UPDATE boletos SET marcador = ?, atualizado_em = ? WHERE id = ?', marcador);
+    for (const b of plano.cancelar) {
+      mudar(b, 'cancelado (planilha)', "UPDATE boletos SET situacao = 'cancelado', observacao = COALESCE(observacao || ' | ', '') || ?, atualizado_em = ? WHERE id = ?",
+        'Cancelado na reimportação: a linha foi apagada ou alterada na planilha');
+    }
+    for (const b of plano.conferir) {
+      mudar(b, 'conferir (planilha)', 'UPDATE boletos SET conferir_motivo = ?, atualizado_em = ? WHERE id = ?',
+        'foi pago pelo sistema, mas a linha não existe mais na planilha (apagada ou alterada)');
+    }
+    for (const p of plano.pendenciasNovas) insP.run(p);
+    for (const p of plano.pendenciasResolver) db.prepare('UPDATE pendencias SET resolvida = 1 WHERE id = ?').run(p.id);
   })();
-  return res;
+  return resumoDoPlano(plano);
 }

@@ -7,7 +7,7 @@ import {
   podeTentarLogin, registrarErroLogin, limparErrosLogin,
 } from './auth.js';
 import { criarServicoBoletos, ErroValidacao } from './boletos.js';
-import { analisarPlanilha, gravarImportacao } from './importar.js';
+import { analisarPlanilha, gravarImportacao, planejarImportacao, resumoDoPlano } from './importar.js';
 import { hojeBR } from './util.js';
 
 // Monta o app Express. Recebe o banco já aberto (assim os testes usam um banco em memória).
@@ -148,8 +148,8 @@ export function criarApp(db, { diasSessao = 30, cookieSeguro = false } = {}) {
       conferir: a.boletos.filter((b) => b.conferir_motivo).length, pendencias: a.pendencias,
       totalCentavos: a.boletos.reduce((s, b) => s + b.valor_centavos, 0),
     }));
-    if (!gravar) return res.json({ simulacao: true, resumo });
-    res.json({ simulacao: false, resumo, resultado: gravarImportacao(db, analises, req.usuario.id) });
+    if (!gravar) return res.json({ simulacao: true, resumo, mudancas: resumoDoPlano(planejarImportacao(db, analises)) });
+    res.json({ simulacao: false, resumo, mudancas: gravarImportacao(db, analises, req.usuario.id) });
   }));
 
   app.get('/api/usuarios', adm, (req, res) => {
